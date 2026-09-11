@@ -1,0 +1,8 @@
+*.rbxl
+*.rbxlx
+*.rbxl.lock
+*.rbxlx.lock
+
+.DS_Store
+*.swp
+image-search/
