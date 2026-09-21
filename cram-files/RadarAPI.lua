@@ -41,8 +41,53 @@
 --]]
 
 local Players = game:GetService("Players")
+local CollectionService = game:GetService("CollectionService")
 
 local RadarAPI = {}
+
+local function isWorldModel(model)
+	if not model then return true end
+	if model == workspace then return true end
+	local node = model
+	while node and node ~= workspace do
+		local rawName = node.Name or ""
+		local key = string.lower(rawName)
+		key = string.gsub(key, "[%s%-_]+", "")
+		if key == "map" or key == "baseplate" or key == "terrain" or key == "scenery" 
+			or key == "environment" or key == "smallcity" or key == "city" or key == "town" 
+			or key == "world" or key == "buildings" or key == "building" or key == "roads" 
+			or key == "ground" or key == "nature" or key == "props" or key == "spawns" 
+			or key == "structure" or key == "structures" or key == "ciws"
+			or string.find(key, "map", 1, true) == 1 
+			or string.find(key, "scenery", 1, true) == 1 
+			or string.find(key, "environment", 1, true) == 1 
+			or string.find(key, "city", 1, true) == 1 
+			or string.find(key, "town", 1, true) == 1
+			or string.find(key, "terrain", 1, true) == 1 then
+			return true
+		end
+		node = node.Parent
+	end
+	return false
+end
+
+local function isDeadModel(model)
+	if not model or not model.Parent or not model:IsDescendantOf(workspace) then
+		return true
+	end
+	local lowName = string.lower(model.Name)
+	if string.find(lowName, "wreck", 1, true) or string.find(lowName, "destroyed", 1, true) or string.find(lowName, "debris", 1, true) then
+		return true
+	end
+	if model:FindFirstChild("Destroyed") or model:FindFirstChild("Dead") or model:FindFirstChild("Exploded") or model:FindFirstChild("Wreck") then
+		return true
+	end
+	local crashed = model:FindFirstChild("Crashed", true)
+	if crashed and crashed:IsA("BoolValue") and crashed.Value == true then
+		return true
+	end
+	return false
+end
 
 RadarAPI._systems = {}
 RadarAPI._claims = {}
@@ -114,6 +159,7 @@ RadarAPI.Profiles = {}
 
 RadarAPI.Profiles.Helicopter = {
 	match = function(model)
+		if isDeadModel(model) or isWorldModel(model) then return false end
 		return model:FindFirstChild("Rotors", true) ~= nil
 			or model:FindFirstChild("PilotSeat", true) ~= nil
 			or model:FindFirstChild("RotorHitbox", true) ~= nil
@@ -163,6 +209,7 @@ RadarAPI.Profiles.Helicopter = {
 	end,
 
 	isAlive = function(model)
+		if isDeadModel(model) then return false end
 		local hitboxes = RadarAPI.Profiles.Helicopter.getHitboxes(model)
 		if #hitboxes > 0 then
 			for _, hb in ipairs(hitboxes) do
@@ -182,6 +229,7 @@ RadarAPI.Profiles.Helicopter = {
 
 RadarAPI.Profiles.CombatJet = {
 	match = function(model)
+		if isDeadModel(model) or isWorldModel(model) then return false end
 		return model:FindFirstChild("Afterburner", true) ~= nil
 			or model:FindFirstChild("MainParts", true) ~= nil
 	end,
@@ -194,9 +242,6 @@ RadarAPI.Profiles.CombatJet = {
 			or model:FindFirstChildWhichIsA("BasePart", true)
 	end,
 
-	-- On a hit: small chance to knock out a still-running engine or the APU
-	-- (StatusMain bools: true = running fine, false = damaged/failed), then
-	-- drain Health. When Health reaches zero, set Crashed = true.
 	applyDamage = function(model, amount)
 		local plane = model:FindFirstChild("Plane", true) or model
 
@@ -237,6 +282,7 @@ RadarAPI.Profiles.CombatJet = {
 	end,
 
 	isAlive = function(model)
+		if isDeadModel(model) then return false end
 		local plane = model:FindFirstChild("Plane", true) or model
 		local crashed = plane:FindFirstChild("Crashed", true)
 		if crashed and crashed:IsA("BoolValue") and crashed.Value == true then
@@ -252,12 +298,23 @@ RadarAPI.Profiles.CombatJet = {
 
 -- Fallback profile for anything that doesn't match a more specific one.
 RadarAPI.Profiles.Generic = {
-	match = function()
-		return true
+	match = function(model)
+		if isDeadModel(model) or isWorldModel(model) then return false end
+		return model:FindFirstChildWhichIsA("VehicleSeat", true) ~= nil
+			or model:FindFirstChild("DriveSeat", true) ~= nil
+			or model:FindFirstChild("A-Chassis Tune", true) ~= nil
+			or model:FindFirstChild("CarRegenScript", true) ~= nil
+			or model:FindFirstChild("CanBeTargetted", true) ~= nil
+			or model:FindFirstChild("CRAM_ManualTarget", true) ~= nil
+			or model:FindFirstChild("Durability", true) ~= nil
+			or model:FindFirstChild("Arsenal", true) ~= nil
+			or CollectionService:HasTag(model, "CRAM_Vehicle")
+			or CollectionService:HasTag(model, "CRAMTarget")
 	end,
 
 	getBestTargetPart = function(model)
 		return model:FindFirstChildWhichIsA("VehicleSeat", true)
+			or model:FindFirstChild("DriveSeat", true)
 			or model.PrimaryPart
 			or model:FindFirstChildWhichIsA("BasePart", true)
 	end,
@@ -272,6 +329,7 @@ RadarAPI.Profiles.Generic = {
 	end,
 
 	isAlive = function(model)
+		if isDeadModel(model) then return false end
 		local tracker = model:FindFirstChild("Health", true) or model:FindFirstChild("Durability", true)
 		if tracker then
 			return tracker.Value > 0
@@ -284,13 +342,16 @@ RadarAPI.Profiles.Generic = {
 RadarAPI.ProfileOrder = { "Helicopter", "CombatJet", "Generic" }
 
 function RadarAPI.classify(model)
+	if not model or isDeadModel(model) or isWorldModel(model) then
+		return nil, nil
+	end
 	for _, name in ipairs(RadarAPI.ProfileOrder) do
 		local profile = RadarAPI.Profiles[name]
 		if profile.match(model) then
 			return name, profile
 		end
 	end
-	return "Generic", RadarAPI.Profiles.Generic
+	return nil, nil
 end
 
 -- ===========================================================================
@@ -313,6 +374,7 @@ function RadarAPI.scan()
 		if not child:IsA("Model") then return end
 		if child.Name == "Model" then return end -- this is the staging container itself, not a vehicle
 		if seen[child] then return end
+		if isWorldModel(child) or isDeadModel(child) then return end
 		if Players:GetPlayerFromCharacter(child) then return end
 		seen[child] = true
 
@@ -323,7 +385,7 @@ function RadarAPI.scan()
 		end
 
 		local profileName, profile = RadarAPI.classify(child)
-		if profile.isAlive(child) then
+		if profile and profile.isAlive(child) then
 			local targetPart = profile.getBestTargetPart(child)
 			if targetPart then
 				table.insert(detected, {
@@ -368,12 +430,19 @@ end
 
 function RadarAPI.damage(model, amount)
 	local _, profile = RadarAPI.classify(model)
-	return profile.applyDamage(model, amount)
+	if profile then
+		return profile.applyDamage(model, amount)
+	end
+	return false
 end
 
 function RadarAPI.isAlive(model)
+	if isDeadModel(model) then return false end
 	local _, profile = RadarAPI.classify(model)
-	return profile.isAlive(model)
+	if profile then
+		return profile.isAlive(model)
+	end
+	return false
 end
 
 -- ===========================================================================
@@ -468,20 +537,25 @@ buildDiagnosticReport = function(model)
 	report.isPlayerCharacter = isPlayerChar ~= nil
 
 	local profileName, profile = RadarAPI.classify(model)
-	report.profile = profileName
+	report.profile = profileName or "None"
 
-	local ok, aliveResult = pcall(profile.isAlive, model)
-	report.isAliveOk = ok
-	report.isAlive = ok and aliveResult or nil
-	if not ok then
-		report.isAliveError = tostring(aliveResult)
-	end
+	if profile then
+		local ok, aliveResult = pcall(profile.isAlive, model)
+		report.isAliveOk = ok
+		report.isAlive = ok and aliveResult or nil
+		if not ok then
+			report.isAliveError = tostring(aliveResult)
+		end
 
-	local ok2, targetPartResult = pcall(profile.getBestTargetPart, model)
-	report.targetPartOk = ok2
-	report.targetPart = ok2 and targetPartResult or nil
-	if not ok2 then
-		report.targetPartError = tostring(targetPartResult)
+		local ok2, targetPartResult = pcall(profile.getBestTargetPart, model)
+		report.targetPartOk = ok2
+		report.targetPart = ok2 and targetPartResult or nil
+		if not ok2 then
+			report.targetPartError = tostring(targetPartResult)
+		end
+	else
+		report.isAlive = false
+		report.targetPart = nil
 	end
 
 	local wouldBeScanned = (report.parentIsNamedModel or report.parentIsDirectWorkspaceChild)
@@ -501,6 +575,8 @@ buildDiagnosticReport = function(model)
 	table.insert(lines, "[RadarAPI] Would scan() find this via container check: " .. tostring(report.wouldBeScannedByContainerCheck))
 	if not wouldBeScanned then
 		table.insert(lines, "[RadarAPI] >>> NOT SCANNED: parent isn't a 'Model'-named staging container and isn't workspace directly.")
+	elseif not profile then
+		table.insert(lines, "[RadarAPI] >>> NOT IN detected list: unclassified model / not a vehicle.")
 	elseif not report.isAlive then
 		table.insert(lines, "[RadarAPI] >>> NOT IN detected list: isAlive() returned false.")
 	elseif not report.targetPart then
