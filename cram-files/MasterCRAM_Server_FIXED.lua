@@ -126,6 +126,42 @@ local function cleanModelName(rawName)
 	n = string.gsub(n, "_%d+$", "")
 	return n
 end
+
+local function getVehicleRootModel(part)
+	if not part then return nil end
+	local cur = part:IsA("Model") and part or part:FindFirstAncestorOfClass("Model")
+	if not cur then return nil end
+	local topModel = cur
+	local node = cur
+	while node and node.Parent and node.Parent ~= workspace do
+		local p = node.Parent
+		if p.Parent == workspace and p.Name == "Model" and (p:IsA("Model") or p:IsA("Folder")) then
+			topModel = node
+			break
+		end
+		if p.Parent == workspace and p:IsA("Folder") then
+			topModel = node
+			break
+		end
+		if p:IsA("Model") then
+			topModel = p
+		end
+		node = p
+	end
+	return topModel
+end
+
+local function resolveVehicleModel(part)
+	if not part then return nil end
+	if RadarAPI and RadarAPI.scan then
+		for _, entry in ipairs(RadarAPI.scan()) do
+			if entry.model == part or entry.targetPart == part or (entry.model and part:IsDescendantOf(entry.model)) then
+				return entry.model
+			end
+		end
+	end
+	return getVehicleRootModel(part)
+end
 local RADAR_PROFILE_LABELS = {
 	Helicopter = "HELICOPTER",
 	CombatJet = "COMBAT JET",
@@ -189,22 +225,24 @@ local function isPermTargetMatch(model, permRuleFolder)
 	end
 end
 local function applyTag(targetPart, isPerm)
-	local mdl = targetPart
-	local current = targetPart
-	for i = 1, 10 do
-		if current and current.Parent and current.Parent:IsA("Model") then
-			current = current.Parent
-			if current.Name == "Map" or current.Name == "Workspace" or current == workspace then break end
-			if current:FindFirstChildOfClass("Humanoid") or current:FindFirstChild("Durability") or current:FindFirstChild("Health") or current:FindFirstChild("Arsenal") or current:FindFirstChild("Damage", true) then
-				mdl = current
+	local mdl = resolveVehicleModel(targetPart) or targetPart
+	if mdl == targetPart then
+		local current = targetPart
+		for i = 1, 10 do
+			if current and current.Parent and current.Parent:IsA("Model") then
+				current = current.Parent
+				if current.Name == "Map" or current.Name == "Workspace" or current == workspace then break end
+				if current:FindFirstChildOfClass("Humanoid") or current:FindFirstChild("Durability") or current:FindFirstChild("Health") or current:FindFirstChild("Arsenal") or current:FindFirstChild("Damage", true) then
+					mdl = current
+					break
+				end
+			else
 				break
 			end
-		else
-			break
 		end
 	end
 	if mdl == targetPart then
-		current = targetPart
+		local current = targetPart
 		for i = 1, 10 do
 			if current and current.Parent and current.Parent:IsA("Model") then
 				current = current.Parent
@@ -309,7 +347,7 @@ local function applyTag(targetPart, isPerm)
 end
 local function removeTag(targetPart)
 	if not targetPart then return end
-	local model = targetPart:FindFirstAncestorOfClass("Model") or targetPart
+	local model = resolveVehicleModel(targetPart) or (targetPart:IsA("Model") and targetPart or targetPart:FindFirstAncestorOfClass("Model")) or targetPart
 	for _, tag in ipairs(CollectionService:GetTagged("CRAMTarget")) do
 		if tag:IsDescendantOf(model) then
 			if tag:GetAttribute("CRAMCreated") == true then
@@ -1161,7 +1199,7 @@ local function onRemoteEvent(player, action, data)
 	elseif action == "TagTarget" then
 		local targetPart = data
 		if targetPart and targetPart:IsA("BasePart") and targetPart:IsDescendantOf(workspace) then
-			local targetModel = targetPart:FindFirstAncestorOfClass("Model")
+			local targetModel = resolveVehicleModel(targetPart) or targetPart:FindFirstAncestorOfClass("Model")
 			if targetModel and not isWorldModel(targetModel) and applyTag(targetPart) then
 				broadcastFullState()
 			end
@@ -1209,7 +1247,7 @@ local function onRemoteEvent(player, action, data)
 	elseif action == "TagPerm" then
 		local targetPart = data
 		if targetPart and targetPart:IsA("BasePart") and targetPart:IsDescendantOf(workspace) then
-			local mdl = targetPart:FindFirstAncestorOfClass("Model")
+			local mdl = resolveVehicleModel(targetPart) or targetPart:FindFirstAncestorOfClass("Model")
 			if mdl and not isWorldModel(mdl) then
 				local cleanName = cleanModelName(mdl.Name)
 				registerPermTarget(cleanName, mdl)

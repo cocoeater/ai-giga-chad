@@ -1656,6 +1656,30 @@ local function isTaggedAsVehicle(m)
 	return false
 end
 
+local function getVehicleRootModel(part)
+	if not part then return nil end
+	local cur = part:IsA("Model") and part or part:FindFirstAncestorOfClass("Model")
+	if not cur then return nil end
+	local topModel = cur
+	local node = cur
+	while node and node.Parent and node.Parent ~= workspace do
+		local p = node.Parent
+		if p.Parent == workspace and p.Name == "Model" and (p:IsA("Model") or p:IsA("Folder")) then
+			topModel = node
+			break
+		end
+		if p.Parent == workspace and p:IsA("Folder") then
+			topModel = node
+			break
+		end
+		if p:IsA("Model") then
+			topModel = p
+		end
+		node = p
+	end
+	return topModel
+end
+
 local function getHoverTarget()
 	local ray = mouse.UnitRay
 	local cp = RaycastParams.new()
@@ -1673,6 +1697,14 @@ local function getHoverTarget()
 		local hitPart = r.Instance
 		for _, p in ipairs(Players:GetPlayers()) do
 			if p.Character and hitPart:IsDescendantOf(p.Character) then return nil end
+		end
+		local root = getVehicleRootModel(hitPart)
+		if root and root ~= workspace and root.Name ~= "Map" and root.Name ~= "Baseplate" and root.Name ~= "Terrain" then
+			if not Players:GetPlayerFromCharacter(root) then
+				if isTaggedAsVehicle(root) or root:FindFirstChildOfClass("Humanoid") or root:FindFirstChild("Durability", true) or root:FindFirstChild("Health", true) or root:FindFirstChild("Arsenal", true) or isVehicleOrTarget(root) then
+					return root
+				end
+			end
 		end
 		local cur = hitPart
 		for i = 1, 10 do

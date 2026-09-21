@@ -91,6 +91,42 @@ local function cleanModelName(rawName)
 	n = string.gsub(n, "_%d+$", "")
 	return n
 end
+
+local function getVehicleRootModel(part)
+	if not part then return nil end
+	local cur = part:IsA("Model") and part or part:FindFirstAncestorOfClass("Model")
+	if not cur then return nil end
+	local topModel = cur
+	local node = cur
+	while node and node.Parent and node.Parent ~= workspace do
+		local p = node.Parent
+		if p.Parent == workspace and p.Name == "Model" and (p:IsA("Model") or p:IsA("Folder")) then
+			topModel = node
+			break
+		end
+		if p.Parent == workspace and p:IsA("Folder") then
+			topModel = node
+			break
+		end
+		if p:IsA("Model") then
+			topModel = p
+		end
+		node = p
+	end
+	return topModel
+end
+
+local function resolveVehicleModel(part)
+	if not part then return nil end
+	if RadarAPI and RadarAPI.scan then
+		for _, entry in ipairs(RadarAPI.scan()) do
+			if entry.model == part or entry.targetPart == part or (entry.model and part:IsDescendantOf(entry.model)) then
+				return entry.model
+			end
+		end
+	end
+	return getVehicleRootModel(part)
+end
 local function isPermTargetMatch(model, permRuleFolder)
 	if not model or not model:IsA("Model") or not permRuleFolder then return false end
 	local cleanName = cleanModelName(model.Name)
@@ -214,8 +250,10 @@ local function isTargetAllowed(unit, targetModel)
 	if isIndiv then
 		local whitelist = cfg and cfg.targetWhitelist or {}
 		local isWhitelisted = false
+		local cleanTargName = string.lower(cleanModelName(targetModel.Name))
 		for _, w in ipairs(whitelist) do
-			if isTagMatch(targetModel, w) or cleanModelName(targetModel.Name) == cleanModelName(tostring(w)) then
+			local cleanW = string.lower(cleanModelName(tostring(w)))
+			if isTagMatch(targetModel, w) or cleanTargName == cleanW or string.find(cleanTargName, cleanW, 1, true) or string.find(cleanW, cleanTargName, 1, true) then
 				isWhitelisted = true
 				break
 			end
@@ -747,7 +785,7 @@ local function setupCIWS(model)
 				hitCache[directDur] = true
 				directDur.Value = math.max(0, directDur.Value - damage)
 			end
-			local mdl = hitPart:FindFirstAncestorOfClass("Model")
+			local mdl = resolveVehicleModel(hitPart) or hitPart:FindFirstAncestorOfClass("Model")
 			if mdl and mdl ~= workspace and not modelsChecked[mdl] then
 				modelsChecked[mdl] = true
 				local wasAlive = RadarAPI.isAlive(mdl)
@@ -945,8 +983,8 @@ local function getValidTargets()
 	local seenTargets = {}
 	for _, isTag in ipairs(rawTags) do
 		if isTag:IsA("BoolValue") and isTag.Name == "CanBeTargetted" and isTag.Value == true and isTag:GetAttribute("CRAMDisabled") ~= true and isTag:IsDescendantOf(workspace) then
-			local model = isTag:FindFirstChild("MainModel") and isTag.MainModel.Value or isTag:FindFirstAncestorOfClass("Model")
 			local targPart = isTag:FindFirstChild("TargetPart") and isTag.TargetPart.Value or (isTag.Parent:IsA("BasePart") and isTag.Parent)
+			local model = isTag:FindFirstChild("MainModel") and isTag.MainModel.Value or resolveVehicleModel(targPart or isTag.Parent)
 
 			local isPlayer = false
 			if model then
@@ -974,7 +1012,7 @@ local function getValidTargets()
 	local vehicleTags = CollectionService:GetTagged("CRAM_Vehicle")
 	for _, part in ipairs(vehicleTags) do
 		if part:IsDescendantOf(workspace) then
-			local model = part:FindFirstAncestorOfClass("Model")
+			local model = resolveVehicleModel(part)
 			if model and not isBadTarget(model) then
 				local isPlayer = false
 				if Players:GetPlayerFromCharacter(model) then isPlayer = true end
