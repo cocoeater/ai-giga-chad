@@ -133,6 +133,10 @@ local function getVehicleRootModel(part)
 			end
 			return nil
 		end
+		if Players:GetPlayerFromCharacter(p) then
+			topModel = node
+			break
+		end
 		if p.Parent == workspace and p.Name == "Model" and (p:IsA("Model") or p:IsA("Folder")) then
 			topModel = node
 			break
@@ -235,6 +239,19 @@ local function isTagMatch(targetModel, filterTag)
 		end
 		for _, pName in ipairs({"f-16", "a-10", "su-25", "plane", "jet"}) do
 			if string.find(lowName, pName, 1, true) then return true end
+		end
+	end
+	if RadarAPI.classify(targetModel) == "CombatJet" then
+		for _, pName in ipairs({"f-16", "a-10", "su-25", "plane", "jet", "su25", "f16", "a10"}) do
+			if string.find(lowFilter, pName, 1, true) or string.find(lowName, pName, 1, true) then
+				return true
+			end
+		end
+	end
+	for _, child in ipairs(targetModel:GetDescendants()) do
+		local cLow = string.lower(child.Name)
+		if #cLow >= 3 and (string.find(cLow, lowFilter, 1, true) or string.find(lowFilter, cLow, 1, true)) then
+			return true
 		end
 	end
 	if lowFilter == "air_drone" or lowFilter == "air drone" or lowFilter == "drone" then
@@ -1010,11 +1027,14 @@ local function getValidTargets()
 
 			local isPlayer = false
 			if model then
-				if Players:GetPlayerFromCharacter(model) then isPlayer = true end
-				for _, pl in ipairs(Players:GetPlayers()) do
-					if pl.Character and (model == pl.Character or model:IsDescendantOf(pl.Character) or (targPart and targPart:IsDescendantOf(pl.Character))) then
-						isPlayer = true
-						break
+				if Players:GetPlayerFromCharacter(model) then
+					isPlayer = true
+				elseif not RadarAPI.classify(model) then
+					for _, pl in ipairs(Players:GetPlayers()) do
+						if pl.Character and (model == pl.Character or model:IsDescendantOf(pl.Character)) then
+							isPlayer = true
+							break
+						end
 					end
 				end
 			end
@@ -1037,7 +1057,16 @@ local function getValidTargets()
 			local model = resolveVehicleModel(part)
 			if model and not isBadTarget(model) then
 				local isPlayer = false
-				if Players:GetPlayerFromCharacter(model) then isPlayer = true end
+				if Players:GetPlayerFromCharacter(model) then
+					isPlayer = true
+				elseif not RadarAPI.classify(model) then
+					for _, pl in ipairs(Players:GetPlayers()) do
+						if pl.Character and (model == pl.Character or model:IsDescendantOf(pl.Character)) then
+							isPlayer = true
+							break
+						end
+					end
+				end
 				if not isPlayer then
 					local alive = isVehicleAlive(model)
 					if alive and not seenTargets[part] then

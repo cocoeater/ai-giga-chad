@@ -414,6 +414,29 @@ function RadarAPI.scan()
 		tryAddCandidate(child)
 	end
 
+	-- Scan player characters for vehicles parented inside them by flight scripts
+	for _, player in ipairs(Players:GetPlayers()) do
+		local char = player.Character
+		if char then
+			for _, child in ipairs(char:GetChildren()) do
+				if child:IsA("Model") and not Players:GetPlayerFromCharacter(child) then
+					tryAddCandidate(child)
+				end
+			end
+		end
+	end
+
+	local charsFolder = workspace:FindFirstChild("Characters")
+	if charsFolder then
+		for _, char in ipairs(charsFolder:GetChildren()) do
+			for _, child in ipairs(char:GetChildren()) do
+				if child:IsA("Model") and not Players:GetPlayerFromCharacter(child) then
+					tryAddCandidate(child)
+				end
+			end
+		end
+	end
+
 	RadarAPI._cache = detected
 	RadarAPI._cacheTime = now
 	return detected

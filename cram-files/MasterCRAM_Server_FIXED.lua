@@ -168,6 +168,10 @@ local function getVehicleRootModel(part)
 			end
 			return nil
 		end
+		if Players:GetPlayerFromCharacter(p) then
+			topModel = node
+			break
+		end
 		if p.Parent == workspace and p.Name == "Model" and (p:IsA("Model") or p:IsA("Folder")) then
 			topModel = node
 			break
