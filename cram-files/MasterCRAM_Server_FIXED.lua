@@ -919,6 +919,10 @@ local function onRemoteEvent(player, action, data)
 		return
 	end
 	if action == "RequestFullState" then
+		detectedDirty = true
+		stateCache = nil
+		RadarAPI.invalidateCache()
+		scanWorkspaceVehicles()
 		sendStateTo(player)
 		return
 	end
