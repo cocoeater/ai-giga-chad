@@ -119,11 +119,35 @@ local function cleanModelName(rawName)
 	return n
 end
 
+local function isWorldModel(instance)
+	if not instance then return true end
+	if instance == workspace then return true end
+	local node = instance
+	while node and node ~= workspace do
+		local rawName = node.Name or ""
+		local key = string.lower(rawName)
+		key = string.gsub(key, "[%s%-_]+", "")
+		if key == "map" or key == "baseplate" or key == "terrain" or key == "scenery" 
+			or key == "environment" or key == "smallcity" or key == "city" or key == "town" 
+			or key == "world" or key == "buildings" or key == "building" or key == "roads" 
+			or key == "ground" or key == "nature" or key == "props" or key == "spawns" 
+			or key == "structure" or key == "structures"
+			or string.find(key, "map", 1, true) == 1 
+			or string.find(key, "scenery", 1, true) == 1 
+			or string.find(key, "environment", 1, true) == 1 
+			or string.find(key, "city", 1, true) == 1 
+			or string.find(key, "town", 1, true) == 1
+			or string.find(key, "terrain", 1, true) == 1 then
+			return true
+		end
+		node = node.Parent
+	end
+	return false
+end
+
 local function isVehicleOrTarget(m)
-	if not m or not m:IsA("Model") then return false end
-	if m == workspace or m.Name == "Map" or m.Name == "Baseplate" or m.Name == "Terrain" or m.Name == "Ciws" or m.Name == "Inserter" or m.Name == "Model" then
-		local modelKey = string.lower(m.Name)
-		if modelKey == "map" or modelKey == "small city" or modelKey == "city" or modelKey == "town" or modelKey == "terrain" or modelKey == "scenery" or modelKey == "environment" then return false end
+	if not m or not m:IsA("Model") or isWorldModel(m) then return false end
+	if m == workspace or m.Name == "Ciws" or m.Name == "Inserter" or m.Name == "Model" then
 		return false
 	end
 	local Players = game:GetService("Players")
@@ -135,9 +159,10 @@ local function isVehicleOrTarget(m)
 			break
 		end
 	end
-	local explicitTarget = m:FindFirstChild("A-Chassis Tune", true) or m:FindFirstChildWhichIsA("VehicleSeat", true) or m:FindFirstChild("DriveSeat", true) or m:FindFirstChild("Drive", true) or m:FindFirstChildOfClass("Humanoid") or m:FindFirstChildWhichIsA("Humanoid", true) or m:FindFirstChild("Durability", true) or m:FindFirstChild("Health", true) or m:FindFirstChild("Arsenal", true) or m:FindFirstChild("Damage", true) or m:FindFirstChild("CanBeTargetted", true)
-	local structuralTarget = hasUnanchored and (m:FindFirstChild("Engine", true) or m:FindFirstChild("Chassis", true) or m:FindFirstChild("Body", true) or m:FindFirstChild("Fuselage", true) or m:FindFirstChild("Cockpit", true) or m:FindFirstChild("Hull", true))
-	if explicitTarget or structuralTarget then return true end
+	if not hasUnanchored then return false end
+	local explicitVehicle = m:FindFirstChild("A-Chassis Tune", true) or m:FindFirstChildWhichIsA("VehicleSeat", true) or m:FindFirstChild("DriveSeat", true) or m:FindFirstChild("Drive", true) or m:FindFirstChild("CarRegenScript", true) or m:FindFirstChild("CanBeTargetted", true) or m:FindFirstChild("Durability", true) or m:FindFirstChild("Arsenal", true)
+	local structuralVehicle = m:FindFirstChild("Engine", true) or m:FindFirstChild("Fuselage", true) or m:FindFirstChild("Cockpit", true) or m:FindFirstChild("RotorHitbox", true) or m:FindFirstChild("BulletHitbox", true)
+	if explicitVehicle or structuralVehicle then return true end
 	return false
 end
 
@@ -1658,12 +1683,20 @@ end
 
 local function getVehicleRootModel(part)
 	if not part then return nil end
+	if isWorldModel(part) then return nil end
 	local cur = part:IsA("Model") and part or part:FindFirstAncestorOfClass("Model")
-	if not cur then return nil end
+	if not cur or isWorldModel(cur) then return nil end
 	local topModel = cur
 	local node = cur
 	while node and node.Parent and node.Parent ~= workspace do
 		local p = node.Parent
+		if isWorldModel(p) then
+			if p.Parent == workspace and p.Name == "Model" and (p:IsA("Model") or p:IsA("Folder")) then
+				topModel = node
+				break
+			end
+			return nil
+		end
 		if p.Parent == workspace and p.Name == "Model" and (p:IsA("Model") or p:IsA("Folder")) then
 			topModel = node
 			break
@@ -1677,6 +1710,7 @@ local function getVehicleRootModel(part)
 		end
 		node = p
 	end
+	if isWorldModel(topModel) then return nil end
 	return topModel
 end
 
@@ -1693,33 +1727,26 @@ local function getHoverTarget()
 	if placementGhost then table.insert(ign, placementGhost) end
 	cp.FilterDescendantsInstances = ign
 	local r = workspace:Raycast(ray.Origin, ray.Direction * 15000, cp)
-	if r and r.Instance then
-		local hitPart = r.Instance
-		for _, p in ipairs(Players:GetPlayers()) do
-			if p.Character and hitPart:IsDescendantOf(p.Character) then return nil end
-		end
-		local root = getVehicleRootModel(hitPart)
-		if root and root ~= workspace and root.Name ~= "Map" and root.Name ~= "Baseplate" and root.Name ~= "Terrain" then
-			if not Players:GetPlayerFromCharacter(root) then
-				if isTaggedAsVehicle(root) or root:FindFirstChildOfClass("Humanoid") or root:FindFirstChild("Durability", true) or root:FindFirstChild("Health", true) or root:FindFirstChild("Arsenal", true) or isVehicleOrTarget(root) then
-					return root
-				end
-			end
-		end
-		local cur = hitPart
-		for i = 1, 10 do
-			if cur and cur.Parent and cur.Parent:IsA("Model") then
-				cur = cur.Parent
-				if cur.Name == "Map" or cur.Name == "Workspace" or cur == workspace then break end
-				if Players:GetPlayerFromCharacter(cur) then return nil end
-				if isTaggedAsVehicle(cur) or cur:FindFirstChildOfClass("Humanoid") or cur:FindFirstChild("Durability", true) or cur:FindFirstChild("Health", true) or cur:FindFirstChild("Arsenal", true) or isVehicleOrTarget(cur) then
-					return cur
-				end
-			else
-				break
-			end
-		end
+	if not r or not r.Instance then return nil end
+
+	local hitPart = r.Instance
+	if isWorldModel(hitPart) then return nil end
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p.Character and hitPart:IsDescendantOf(p.Character) then return nil end
 	end
+
+	local root = getVehicleRootModel(hitPart)
+	if not root or isWorldModel(root) then return nil end
+	if Players:GetPlayerFromCharacter(root) then return nil end
+
+	if isTaggedAsVehicle(root) or isTaggedAsVehicle(hitPart) or root:FindFirstChild("CanBeTargetted", true) then
+		return root
+	end
+
+	if isVehicleOrTarget(root) then
+		return root
+	end
+
 	return nil
 end
 

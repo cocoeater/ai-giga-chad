@@ -127,14 +127,47 @@ local function cleanModelName(rawName)
 	return n
 end
 
+local function isWorldModel(model)
+	if not model then return true end
+	if model == workspace then return true end
+	local node = model
+	while node and node ~= workspace do
+		local key = string.lower(node.Name or "")
+		key = string.gsub(key, "[%s%-_]+", "")
+		if key == "map" or key == "baseplate" or key == "terrain" or key == "scenery" 
+			or key == "environment" or key == "smallcity" or key == "city" or key == "town" 
+			or key == "world" or key == "buildings" or key == "building" or key == "roads" 
+			or key == "ground" or key == "nature" or key == "props" or key == "spawns" 
+			or key == "structure" or key == "structures"
+			or string.find(key, "map", 1, true) == 1 
+			or string.find(key, "scenery", 1, true) == 1 
+			or string.find(key, "environment", 1, true) == 1 
+			or string.find(key, "city", 1, true) == 1 
+			or string.find(key, "town", 1, true) == 1
+			or string.find(key, "terrain", 1, true) == 1 then
+			return true
+		end
+		node = node.Parent
+	end
+	return false
+end
+
 local function getVehicleRootModel(part)
 	if not part then return nil end
+	if isWorldModel(part) then return nil end
 	local cur = part:IsA("Model") and part or part:FindFirstAncestorOfClass("Model")
-	if not cur then return nil end
+	if not cur or isWorldModel(cur) then return nil end
 	local topModel = cur
 	local node = cur
 	while node and node.Parent and node.Parent ~= workspace do
 		local p = node.Parent
+		if isWorldModel(p) then
+			if p.Parent == workspace and p.Name == "Model" and (p:IsA("Model") or p:IsA("Folder")) then
+				topModel = node
+				break
+			end
+			return nil
+		end
 		if p.Parent == workspace and p.Name == "Model" and (p:IsA("Model") or p:IsA("Folder")) then
 			topModel = node
 			break
@@ -148,6 +181,7 @@ local function getVehicleRootModel(part)
 		end
 		node = p
 	end
+	if isWorldModel(topModel) then return nil end
 	return topModel
 end
 
@@ -467,18 +501,6 @@ local function getBestTargetPart(model: Model)
 	return model:FindFirstChildWhichIsA("BasePart", true)
 end
 
-local function isWorldModel(model)
-	local node = model
-	while node and node ~= workspace do
-		local key = string.lower(node.Name or "")
-		key = string.gsub(key, "[%s%-_]+", "")
-		if key == "map" or key == "baseplate" or key == "terrain" or key == "scenery" or key == "environment" or key == "smallcity" or key == "city" or key == "town" or string.find(key, "map", 1, true) == 1 or string.find(key, "scenery", 1, true) == 1 or string.find(key, "environment", 1, true) == 1 then
-			return true
-		end
-		node = node.Parent
-	end
-	return false
-end
 local function registerPermTarget(cleanName, modelToFingerprint, scanNow)
 	local ruleFolder = permFolder:FindFirstChild(cleanName)
 	if not ruleFolder then
