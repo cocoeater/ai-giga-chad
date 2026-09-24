@@ -645,7 +645,7 @@ local function scanWorkspaceVehicles()
 				for _, item in ipairs(m:GetDescendants()) do
 					if item:IsA("BasePart") and not item.Anchored then hasUnanchored = true break end
 				end
-				local explicitTarget = m:FindFirstChild("FlightAI", true) or m:FindFirstChild("Burner", true) or m:FindFirstChildWhichIsA("VehicleSeat", true) or m:FindFirstChild("DriveSeat", true) or m:FindFirstChild("PilotSeat", true) or m:FindFirstChild("CanBeTargetted", true) or m:FindFirstChild("Durability", true) or m:FindFirstChild("Health", true) or m:FindFirstChildOfClass("Humanoid")
+				local explicitTarget = m:FindFirstChild("FlightAI", true) or m:FindFirstChild("Burner", true) or m:FindFirstChildWhichIsA("VehicleSeat", true) or m:FindFirstChild("DriveSeat", true) or m:FindFirstChild("PilotSeat", true) or m:FindFirstChild("CanBeTargetted", true) or m:FindFirstChild("Durability", true) or m:FindFirstChild("Health", true) or m:FindFirstChild("Crashed", true) or m:FindFirstChild("StatusMain", true) or m:FindFirstChildOfClass("Humanoid")
 				local structuralTarget = hasUnanchored and (m:FindFirstChild("Engine", true) or m:FindFirstChild("Fuselage", true) or m:FindFirstChild("Chassis", true) or m:FindFirstChild("Cockpit", true) or m:FindFirstChild("Turret", true))
 				local isVehicle = explicitTarget or structuralTarget
 

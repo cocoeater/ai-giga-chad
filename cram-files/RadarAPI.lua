@@ -232,11 +232,15 @@ RadarAPI.Profiles.CombatJet = {
 		if isDeadModel(model) or isWorldModel(model) then return false end
 		return model:FindFirstChild("Afterburner", true) ~= nil
 			or model:FindFirstChild("MainParts", true) ~= nil
+			or model:FindFirstChild("StatusMain", true) ~= nil
+			or model:FindFirstChild("Crashed", true) ~= nil
+			or model:FindFirstChild("Plane", true) ~= nil
 	end,
 
 	getBestTargetPart = function(model)
 		return model:FindFirstChild("DamageHBox", true)
 			or model:FindFirstChild("Cockpit", true)
+			or model:FindFirstChild("MainParts", true)
 			or model:FindFirstChildWhichIsA("VehicleSeat", true)
 			or model.PrimaryPart
 			or model:FindFirstChildWhichIsA("BasePart", true)
@@ -245,51 +249,67 @@ RadarAPI.Profiles.CombatJet = {
 	applyDamage = function(model, amount)
 		local plane = model:FindFirstChild("Plane", true) or model
 
-		local statusMain = plane:FindFirstChild("StatusMain", true)
+		local statusMain = model:FindFirstChild("StatusMain", true) or (plane and plane:FindFirstChild("StatusMain", true))
 		if statusMain then
-			local candidates = {}
-			for _, subsystemName in ipairs({ "ENGINE_LEFT", "ENGINE_RIGHT", "APU" }) do
+			for _, subsystemName in ipairs({ "APU", "ENGINE_LEFT", "ENGINE_RIGHT", "Engine", "Engine_Left", "Engine_Right" }) do
 				local v = statusMain:FindFirstChild(subsystemName)
-				if v and v:IsA("BoolValue") and v.Value == true then
-					table.insert(candidates, v)
+				if v and v:IsA("BoolValue") and v.Value ~= false then
+					v.Value = false
+					log("[RadarAPI] CombatJet " .. model.Name .. " -> " .. v:GetFullName() .. " set to false")
 				end
 			end
-			if #candidates > 0 and math.random() < 0.15 then
-				candidates[math.random(1, #candidates)].Value = false
+			for _, child in ipairs(statusMain:GetChildren()) do
+				if child:IsA("BoolValue") and child.Value == true then
+					child.Value = false
+					log("[RadarAPI] CombatJet " .. model.Name .. " -> " .. child:GetFullName() .. " set to false")
+				end
 			end
 		end
 
-		local health = plane:FindFirstChild("Health", true)
+		local crashed = model:FindFirstChild("Crashed", true) or (plane and plane:FindFirstChild("Crashed", true))
+		if crashed and crashed:IsA("BoolValue") then
+			crashed.Value = true
+			log("[RadarAPI] CombatJet " .. model.Name .. " -> " .. crashed:GetFullName() .. " set to true")
+		end
+
+		local health = model:FindFirstChild("Health", true) or (plane and plane:FindFirstChild("Health", true))
 		if health and (health:IsA("NumberValue") or health:IsA("IntValue")) then
+			local before = health.Value
 			health.Value = math.max(0, health.Value - amount)
-			if health.Value <= 0 then
-				local crashed = plane:FindFirstChild("Crashed", true)
-				if crashed and crashed:IsA("BoolValue") then
-					crashed.Value = true
-				end
-				if statusMain then
-					for _, subsystemName in ipairs({ "ENGINE_LEFT", "ENGINE_RIGHT", "APU" }) do
-						local v = statusMain:FindFirstChild(subsystemName)
-						if v and v:IsA("BoolValue") then
-							v.Value = false
-						end
-					end
-				end
-				return true
+			log("[RadarAPI] CombatJet " .. model.Name .. " -> Health: " .. tostring(before) .. " -> " .. tostring(health.Value))
+			if health.Value <= 0 and crashed and crashed:IsA("BoolValue") then
+				crashed.Value = true
 			end
 		end
-		return false
+
+		log("[RadarAPI] Damage applied to CombatJet " .. model.Name .. " (amount: " .. tostring(amount) .. ")")
+		return true
 	end,
 
 	isAlive = function(model)
 		if isDeadModel(model) then return false end
 		local plane = model:FindFirstChild("Plane", true) or model
-		local crashed = plane:FindFirstChild("Crashed", true)
+		local crashed = model:FindFirstChild("Crashed", true) or (plane and plane:FindFirstChild("Crashed", true))
 		if crashed and crashed:IsA("BoolValue") and crashed.Value == true then
 			return false
 		end
-		local health = plane:FindFirstChild("Health", true)
-		if health then
+		local statusMain = model:FindFirstChild("StatusMain", true) or (plane and plane:FindFirstChild("StatusMain", true))
+		if statusMain then
+			local engL = statusMain:FindFirstChild("ENGINE_LEFT")
+			local engR = statusMain:FindFirstChild("ENGINE_RIGHT")
+			local apu = statusMain:FindFirstChild("APU")
+			local hasEng = (engL and engL:IsA("BoolValue")) or (engR and engR:IsA("BoolValue"))
+			if hasEng then
+				local engLDead = not engL or (engL:IsA("BoolValue") and engL.Value == false)
+				local engRDead = not engR or (engR:IsA("BoolValue") and engR.Value == false)
+				local apuDead = not apu or (apu:IsA("BoolValue") and apu.Value == false)
+				if engLDead and engRDead and apuDead then
+					return false
+				end
+			end
+		end
+		local health = model:FindFirstChild("Health", true) or (plane and plane:FindFirstChild("Health", true))
+		if health and (health:IsA("NumberValue") or health:IsA("IntValue")) then
 			return health.Value > 0
 		end
 		return true
@@ -308,6 +328,8 @@ RadarAPI.Profiles.Generic = {
 			or model:FindFirstChild("CRAM_ManualTarget", true) ~= nil
 			or model:FindFirstChild("Durability", true) ~= nil
 			or model:FindFirstChild("Arsenal", true) ~= nil
+			or model:FindFirstChild("Crashed", true) ~= nil
+			or model:FindFirstChild("StatusMain", true) ~= nil
 			or CollectionService:HasTag(model, "CRAM_Vehicle")
 			or CollectionService:HasTag(model, "CRAMTarget")
 	end,
@@ -320,18 +342,38 @@ RadarAPI.Profiles.Generic = {
 	end,
 
 	applyDamage = function(model, amount)
+		local crashed = model:FindFirstChild("Crashed", true)
+		if crashed and crashed:IsA("BoolValue") then
+			crashed.Value = true
+			log("[RadarAPI] Generic " .. model.Name .. " -> Crashed set to true")
+		end
+		local statusMain = model:FindFirstChild("StatusMain", true)
+		if statusMain then
+			for _, child in ipairs(statusMain:GetChildren()) do
+				if child:IsA("BoolValue") and child.Value == true then
+					child.Value = false
+					log("[RadarAPI] Generic " .. model.Name .. " -> StatusMain." .. child.Name .. " set to false")
+				end
+			end
+		end
 		local tracker = model:FindFirstChild("Health", true) or model:FindFirstChild("Durability", true)
 		if tracker and (tracker:IsA("NumberValue") or tracker:IsA("IntValue")) then
+			local before = tracker.Value
 			tracker.Value = math.max(0, tracker.Value - amount)
+			log("[RadarAPI] Generic " .. model.Name .. " -> " .. tracker.Name .. ": " .. tostring(before) .. " -> " .. tostring(tracker.Value))
 			return tracker.Value <= 0
 		end
-		return false
+		return crashed ~= nil
 	end,
 
 	isAlive = function(model)
 		if isDeadModel(model) then return false end
+		local crashed = model:FindFirstChild("Crashed", true)
+		if crashed and crashed:IsA("BoolValue") and crashed.Value == true then
+			return false
+		end
 		local tracker = model:FindFirstChild("Health", true) or model:FindFirstChild("Durability", true)
-		if tracker then
+		if tracker and (tracker:IsA("NumberValue") or tracker:IsA("IntValue")) then
 			return tracker.Value > 0
 		end
 		return true

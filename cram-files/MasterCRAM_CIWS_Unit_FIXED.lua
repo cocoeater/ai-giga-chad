@@ -830,6 +830,8 @@ local function setupCIWS(model)
 				local wasAlive = RadarAPI.isAlive(mdl)
 				if wasAlive then
 					RadarAPI.damage(mdl, damage)
+					trace("CRAM TRACE damage applied", unit.model.Name, mdl.Name, "dmg", damage)
+					print("[CIWS " .. unit.model.Name .. "] Hit target: " .. mdl.Name .. " - applied " .. tostring(damage) .. " damage")
 				end
 				local dur = findDamageValue(mdl, hitPart)
 				if dur and not hitCache[dur] then
@@ -854,7 +856,7 @@ local function setupCIWS(model)
 					if cbt and cbt:IsA("BoolValue") and cbt.Value ~= false then
 						cbt.Value = false
 					end
-					local statusMain = mdl:FindFirstChild("StatusMain")
+					local statusMain = mdl:FindFirstChild("StatusMain", true)
 					if statusMain and not hitCache[statusMain] then
 						hitCache[statusMain] = true
 						for _, b in ipairs(statusMain:GetChildren()) do
@@ -863,6 +865,12 @@ local function setupCIWS(model)
 							end
 						end
 					end
+					local crashed = mdl:FindFirstChild("Crashed", true)
+					if crashed and crashed:IsA("BoolValue") and crashed.Value ~= true then
+						crashed.Value = true
+						print("[CIWS " .. unit.model.Name .. "] Target destroyed: " .. mdl.Name .. " -> Crashed set to true")
+					end
+					trace("CRAM TRACE target destroyed", unit.model.Name, mdl.Name)
 					local CollectionService = game:GetService("CollectionService")
 					CollectionService:RemoveTag(mdl, "CRAM_Vehicle")
 					for _, desc in ipairs(mdl:GetDescendants()) do
@@ -1005,13 +1013,30 @@ local function applyShotDamage(unit, model, part)
 	if not unit or not model or not model.Parent or not part or not part.Parent then return end
 	local cfg = getUnitConfig(unit)
 	local amount = (cfg and cfg.damage) or unit.damageAmount or 25
-	RadarAPI.damage(model, amount)
+	local wasAlive = RadarAPI.isAlive(model)
+	if wasAlive then
+		RadarAPI.damage(model, amount)
+		trace("CRAM TRACE shot hit", unit.model.Name, model.Name, "amount", amount)
+		print("[CIWS " .. unit.model.Name .. "] Direct bullet hit on " .. model.Name .. " (dmg: " .. tostring(amount) .. ")")
+		if not RadarAPI.isAlive(model) then
+			trace("CRAM TRACE shot kill", unit.model.Name, model.Name)
+			print("[CIWS " .. unit.model.Name .. "] Target destroyed: " .. model.Name)
+			local cbt = model:FindFirstChild("CanBeTargetted", true)
+			if cbt and cbt:IsA("BoolValue") then
+				cbt.Value = false
+			end
+		end
+	end
 end
 local function isVehicleAlive(model)
 	if not model or not model.Parent or not model:IsDescendantOf(workspace) then
 		return false
 	end
 	if model:FindFirstChild("Destroyed") or model:FindFirstChild("Dead") or model:FindFirstChild("Exploded") or model:FindFirstChild("Wreck") then
+		return false
+	end
+	local crashed = model:FindFirstChild("Crashed", true)
+	if crashed and crashed:IsA("BoolValue") and crashed.Value == true then
 		return false
 	end
 	return RadarAPI.isAlive(model)

@@ -160,7 +160,7 @@ local function isVehicleOrTarget(m)
 		end
 	end
 	if not hasUnanchored then return false end
-	local explicitVehicle = m:FindFirstChild("A-Chassis Tune", true) or m:FindFirstChildWhichIsA("VehicleSeat", true) or m:FindFirstChild("DriveSeat", true) or m:FindFirstChild("Drive", true) or m:FindFirstChild("CarRegenScript", true) or m:FindFirstChild("CanBeTargetted", true) or m:FindFirstChild("Durability", true) or m:FindFirstChild("Arsenal", true)
+	local explicitVehicle = m:FindFirstChild("A-Chassis Tune", true) or m:FindFirstChildWhichIsA("VehicleSeat", true) or m:FindFirstChild("DriveSeat", true) or m:FindFirstChild("Drive", true) or m:FindFirstChild("CarRegenScript", true) or m:FindFirstChild("CanBeTargetted", true) or m:FindFirstChild("Durability", true) or m:FindFirstChild("Arsenal", true) or m:FindFirstChild("Crashed", true) or m:FindFirstChild("StatusMain", true) or m:FindFirstChild("Plane", true)
 	local structuralVehicle = m:FindFirstChild("Engine", true) or m:FindFirstChild("Fuselage", true) or m:FindFirstChild("Cockpit", true) or m:FindFirstChild("RotorHitbox", true) or m:FindFirstChild("BulletHitbox", true)
 	if explicitVehicle or structuralVehicle then return true end
 	return false
