@@ -430,9 +430,13 @@ function RadarAPI.scan()
 		if profile and profile.isAlive(child) then
 			local targetPart = profile.getBestTargetPart(child)
 			if targetPart then
+				local displayName = child.Name
+				if (displayName == "Plane" or displayName == "Model") and child.Parent and child.Parent:IsA("Folder") and child.Parent ~= workspace then
+					displayName = child.Parent.Name
+				end
 				table.insert(detected, {
 					model = child,
-					name = child.Name,
+					name = displayName,
 					profile = profileName,
 					targetPart = targetPart,
 				})
@@ -445,6 +449,20 @@ function RadarAPI.scan()
 		if container.Name == "Model" and (container:IsA("Model") or container:IsA("Folder")) then
 			for _, child in ipairs(container:GetChildren()) do
 				tryAddCandidate(child)
+			end
+		end
+	end
+
+	-- Scan custom vehicle folders in workspace (e.g. "<PlayerName>'s Plane", "blazeneknew's Plane")
+	for _, folder in ipairs(workspace:GetChildren()) do
+		if folder:IsA("Folder") and not isWorldModel(folder) then
+			local fName = folder.Name
+			if fName ~= "CosmeticBulletsFolder" and fName ~= "Map" and fName ~= "DOTF_Workspace" and fName ~= "Terrain" and fName ~= "Ciws" and not string.find(fName, "__ADONIS", 1, true) then
+				for _, sub in ipairs(folder:GetChildren()) do
+					if sub:IsA("Model") then
+						tryAddCandidate(sub)
+					end
+				end
 			end
 		end
 	end

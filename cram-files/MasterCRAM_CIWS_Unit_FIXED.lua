@@ -217,7 +217,8 @@ local function isTagMatch(targetModel, filterTag)
 	if not targetModel or not filterTag then return false end
 	local lowFilter = string.lower(filterTag)
 	local lowName = string.lower(targetModel.Name)
-	if string.find(lowName, lowFilter, 1, true) or lowName == lowFilter then
+	local parentName = (targetModel.Parent and targetModel.Parent:IsA("Folder") and targetModel.Parent ~= workspace) and string.lower(targetModel.Parent.Name) or ""
+	if string.find(lowName, lowFilter, 1, true) or lowName == lowFilter or (parentName ~= "" and (string.find(parentName, lowFilter, 1, true) or parentName == lowFilter)) then
 		return true
 	end
 	if lowFilter == "ground_vehicle" or lowFilter == "groundvehicle" or lowFilter == "ground targets" or lowFilter == "all ground vehicles" then
@@ -230,7 +231,7 @@ local function isTagMatch(targetModel, filterTag)
 			return true
 		end
 		for _, hName in ipairs({"sa330", "loach", "ch-178", "mi-8", "nh-90", "uh-60", "laat", "uh-1"}) do
-			if string.find(lowName, hName, 1, true) then return true end
+			if string.find(lowName, hName, 1, true) or string.find(parentName, hName, 1, true) then return true end
 		end
 	end
 	if lowFilter == "combat_jet" or lowFilter == "combat jets" or lowFilter == "planes" or lowFilter == "all combat jets" or lowFilter == "air targets" then
@@ -238,12 +239,12 @@ local function isTagMatch(targetModel, filterTag)
 			return true
 		end
 		for _, pName in ipairs({"f-16", "a-10", "su-25", "plane", "jet"}) do
-			if string.find(lowName, pName, 1, true) then return true end
+			if string.find(lowName, pName, 1, true) or string.find(parentName, pName, 1, true) then return true end
 		end
 	end
 	if RadarAPI.classify(targetModel) == "CombatJet" then
 		for _, pName in ipairs({"f-16", "a-10", "su-25", "plane", "jet", "su25", "f16", "a10"}) do
-			if string.find(lowFilter, pName, 1, true) or string.find(lowName, pName, 1, true) then
+			if string.find(lowFilter, pName, 1, true) or string.find(lowName, pName, 1, true) or string.find(parentName, pName, 1, true) then
 				return true
 			end
 		end
@@ -255,7 +256,7 @@ local function isTagMatch(targetModel, filterTag)
 		end
 	end
 	if lowFilter == "air_drone" or lowFilter == "air drone" or lowFilter == "drone" then
-		if string.find(lowName, "drone", 1, true) or string.find(lowName, "uav", 1, true) then
+		if string.find(lowName, "drone", 1, true) or string.find(lowName, "uav", 1, true) or string.find(parentName, "drone", 1, true) then
 			return true
 		end
 	end
@@ -290,9 +291,12 @@ local function isTargetAllowed(unit, targetModel)
 		local whitelist = cfg and cfg.targetWhitelist or {}
 		local isWhitelisted = false
 		local cleanTargName = string.lower(cleanModelName(targetModel.Name))
+		local cleanParentName = (targetModel.Parent and targetModel.Parent:IsA("Folder") and targetModel.Parent ~= workspace) and string.lower(cleanModelName(targetModel.Parent.Name)) or ""
 		for _, w in ipairs(whitelist) do
 			local cleanW = string.lower(cleanModelName(tostring(w)))
-			if isTagMatch(targetModel, w) or cleanTargName == cleanW or string.find(cleanTargName, cleanW, 1, true) or string.find(cleanW, cleanTargName, 1, true) then
+			if isTagMatch(targetModel, w)
+				or cleanTargName == cleanW or string.find(cleanTargName, cleanW, 1, true) or string.find(cleanW, cleanTargName, 1, true)
+				or (cleanParentName ~= "" and (cleanParentName == cleanW or string.find(cleanParentName, cleanW, 1, true) or string.find(cleanW, cleanParentName, 1, true))) then
 				isWhitelisted = true
 				break
 			end
